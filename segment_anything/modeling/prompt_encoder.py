@@ -58,6 +58,8 @@ class PromptEncoder(nn.Module):
             nn.Conv2d(mask_in_chans, embed_dim, kernel_size=1),
         )
         self.no_mask_embed = nn.Embedding(1, embed_dim)
+        # Force it to enable gradients here...
+        self.no_mask_embed.weight.requires_grad = True
 
     def get_dense_pe(self) -> torch.Tensor:
         """
@@ -212,3 +214,32 @@ class PositionEmbeddingRandom(nn.Module):
         coords[:, :, 0] = coords[:, :, 0] / image_size[1]
         coords[:, :, 1] = coords[:, :, 1] / image_size[0]
         return self._pe_encoding(coords.to(torch.float))  # B x N x C
+
+class GraphPromptEncoder(nn.Module):
+    def __init__(
+        self,
+        embed_dim: int,
+        image_embedding_size: Tuple[int, int],
+        input_image_size: Tuple[int, int],
+        mask_in_chans: int,
+        activation: Type[nn.Module] = nn.GELU,
+    ) -> None:
+        """
+        Encodes a graph for input to SAM's mask decoder.
+
+        Arguments:
+          embed_dim (int): The prompts' embedding dimension
+          image_embedding_size (tuple(int, int)): The spatial size of the
+            image embedding, as (H, W).
+          input_image_size (int): The padded size of the image as input
+            to the image encoder, as (H, W).
+          mask_in_chans (int): The number of hidden channels used for
+            encoding input masks.
+          activation (nn.Module): The activation to use when encoding
+            input masks.
+        """
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.input_image_size = input_image_size
+        self.image_embedding_size = image_embedding_size
+        self.pe_layer = PositionEmbeddingRandom(embed_dim // 2)
